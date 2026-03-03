@@ -18,7 +18,11 @@ phases:
       - docker build -t $ECR_REPO:$IMAGE_TAG .
       - docker tag $ECR_REPO:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
       - docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
-
+  post_build:
+    commands:
+      - echo "Deploying..."
+      - kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml --validate=false
+      - kubectl set image deployment/brain-tasks-deployment brain-tasks=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
 artifacts:
   files:
     - 'k8s/deployment.yaml'
