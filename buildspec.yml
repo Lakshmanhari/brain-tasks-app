@@ -20,9 +20,17 @@ phases:
       - docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
   post_build:
     commands:
-      - echo "Deploying..."
+      - echo "Forcing credential refresh..."
+      # This line is the magic - it forces the AWS CLI to get a fresh token for EKS
+      - aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+      
+      - echo "Deploying with validation disabled..."
+      # We add --validate=false and --kubeconfig to be 100% sure
       - kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml --validate=false
+      
+      - echo "Updating image..."
       - kubectl set image deployment/brain-tasks-deployment brain-tasks=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+      - echo "Deployment Complete!"
 artifacts:
   files:
     - 'k8s/deployment.yaml'
