@@ -4,7 +4,6 @@ env:
   variables:
     ECR_REPO: "brain-tasks-app"
     IMAGE_TAG: "latest"
-    CLUSTER_NAME: "brain-tasks-cluster"
     ACCOUNT_ID: "216989110867"
     AWS_REGION: "ap-south-1"
 
@@ -13,25 +12,12 @@ phases:
     commands:
       - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-      - echo Updating kubeconfig for EKS...
-      - aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
   build:
     commands:
-      - echo Building Docker image...
+      - echo Building and Pushing Docker image...
       - docker build -t $ECR_REPO:$IMAGE_TAG .
-      - echo Tagging and Pushing image to ECR...
       - docker tag $ECR_REPO:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
       - docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
-  post_build:
-    commands:
-      - echo "Deploying to EKS..."
-      # This bypasses the credential validation error
-      - kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml --validate=false
-      - echo "Updating deployment with the new ECR image..."
-      - kubectl set image deployment/brain-tasks-deployment brain-tasks=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
-      - echo "Checking rollout status..."
-      - kubectl rollout status deployment/brain-tasks-deployment
-      - echo "Project deployment successful!"
 
 artifacts:
   files:
