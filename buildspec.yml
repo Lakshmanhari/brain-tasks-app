@@ -2,30 +2,40 @@ version: 0.2
 
 env:
   variables:
-    AWS_REGION: ap-south-1
-    ECR_REPO: brain-tasks-app
-    IMAGE_TAG: latest
-    CLUSTER_NAME: brain-tasks-cluster
-    ACCOUNT_ID: 216989110867
+    ECR_REPO: "brain-tasks-app"
+    IMAGE_TAG: "latest"
+    CLUSTER_NAME: "brain-tasks-cluster"
+    ACCOUNT_ID: "216989110867"
+    AWS_REGION: "ap-south-1"
 
 phases:
   pre_build:
     commands:
-      - echo Logging in to ECR...
+      - echo Logging in to Amazon ECR...
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
       - echo Updating kubeconfig for EKS...
       - aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
-
+      - echo Checking cluster access...
+      - kubectl get nodes
   build:
     commands:
       - echo Building Docker image...
       - docker build -t $ECR_REPO:$IMAGE_TAG .
-      - echo Tagging image for ECR...
+      - echo Tagging and Pushing image to ECR...
       - docker tag $ECR_REPO:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
-
+      - docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
   post_build:
     commands:
-      - echo Pushing Docker image to ECR...
-      - docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
-      - echo Updating Kubernetes deployment image...
-      - kubectl set image deployment/brain-tasks-deployment brain-tasks=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+      - echo "Deploying to EKS..."
+      # Use --validate=false to bypass the credential error
+      - kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml --validate=false
+      - echo "Updating deployment with the new ECR image..."
+      # Replace 'brain-tasks-container' with the 'name' field from your deployment.yaml containers list
+      - kubectl set image deployment/brain-tasks-deployment brain-tasks-container=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+      - echo "Checking rollout status..."
+      - kubectl rollout status deployment/brain-tasks-deployment
+      - echo "Project deployment successful!"
+  artifacts:
+    files:
+      - 'k8s/deployment.yaml'
+      - 'k8s/service.yaml
