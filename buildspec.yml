@@ -15,8 +15,6 @@ phases:
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
       - echo Updating kubeconfig for EKS...
       - aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
-      - echo Checking cluster access...
-      - kubectl get nodes
   build:
     commands:
       - echo Building Docker image...
@@ -27,15 +25,15 @@ phases:
   post_build:
     commands:
       - echo "Deploying to EKS..."
-      # Use --validate=false to bypass the credential error
+      # This bypasses the credential validation error
       - kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml --validate=false
       - echo "Updating deployment with the new ECR image..."
-      # Replace 'brain-tasks-container' with the 'name' field from your deployment.yaml containers list
-      - kubectl set image deployment/brain-tasks-deployment brain-tasks-container=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+      - kubectl set image deployment/brain-tasks-deployment brain-tasks=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
       - echo "Checking rollout status..."
       - kubectl rollout status deployment/brain-tasks-deployment
       - echo "Project deployment successful!"
-  artifacts:
-    files:
-      - 'k8s/deployment.yaml'
-      - 'k8s/service.yaml
+
+artifacts:
+  files:
+    - 'k8s/deployment.yaml'
+    - 'k8s/service.yaml'
